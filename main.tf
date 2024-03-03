@@ -33,10 +33,11 @@ EOF
 # S3 bucket
 resource "aws_s3_bucket" "source_image_bucket" {
   bucket = "${var.environment_id}-${var.s3_bucket_name}"
-  acl    = "private"
  
   # To deny all public access as we will access via vpc_dev endpoint
-  force_destroy = true
+  block_public_acls       = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
  
   lifecycle {
     prevent_destroy = false
@@ -45,11 +46,34 @@ resource "aws_s3_bucket" "source_image_bucket" {
   versioning {
     enabled = true
   }
+  
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+  }
 
   tags = {
     Name = "Dev Source Image Bucket"
   }
 }
+
+resource "aws_s3_bucket_ownership_controls" "source_image_bucket_ownership" {
+  bucket = aws_s3_bucket.source_image_bucket.id
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+resource "aws_s3_bucket_acl" "source_image_bucket_acl" {
+  depends_on = [aws_s3_bucket_ownership_controls.source_image_bucket_ownership]
+
+  bucket = aws_s3_bucket.source_image_bucket.id
+  acl    = "private"
+}
+
 
 # IAM policy for S3 access
 resource "aws_iam_policy" "s3_policy" {
@@ -140,7 +164,8 @@ resource "aws_instance" "dev_instances" {
 
 # CloudWatch Logs agent configuration
 resource "aws_cloudwatch_log_group" "dev_ec2_group" {
-  name = "/var/log/messages"
+  name 				= "/var/log/messages"
+  retention_in_days = 3
 }
 
 # CloudWatch Log Stream  
@@ -160,12 +185,47 @@ resource "aws_cloudwatch_log_subscription_filter" "dev_ec2_log_subscription" {
 # S3 bucket for CloudTrail logs
 resource "aws_s3_bucket" "cloudtrail_bucket" {
   bucket = "${var.environment_id}-cloudtrail-bucket-name"
+  
+  lifecycle {
+    prevent_destroy = false
+  }
+
+  versioning {
+    enabled = true
+  }
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+  }
+
+  tags = {
+    Name = "CloudTrail Bucket"
+  }
+}
+
+resource "aws_s3_bucket_ownership_controls" "cloudtrail_bucket_ownership" {
+  bucket = aws_s3_bucket.cloudtrail_bucket.id
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+resource "aws_s3_bucket_acl" "cloudtrail_bucket_acl" {
+  depends_on = [aws_s3_bucket_ownership_controls.cloudtrail_bucket_ownership]
+
+  bucket = aws_s3_bucket.cloudtrail_bucket.id
   acl    = "private"
 }
 
 # CloudWatch Logs setup for CloudTrail logs
 resource "aws_cloudwatch_log_group" "cloudtrail_logs" {
-  name = "/aws/cloudtrail/cloudtrail-ec2-s3"
+  name              = "/aws/cloudtrail/cloudtrail-ec2-s3"
+  retention_in_days = 3
+  skip_destroy      = true  
 }
  
 # CloudTrail setup for EC2 and S3
