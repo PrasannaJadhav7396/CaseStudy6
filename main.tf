@@ -40,7 +40,7 @@ resource "aws_s3_bucket" "source_image_bucket" {
   restrict_public_buckets = true
  
   lifecycle {
-    prevent_destroy = false
+    prevent_destroy = true
   }
 
   versioning {
@@ -187,7 +187,7 @@ resource "aws_s3_bucket" "cloudtrail_bucket" {
   bucket = "${var.environment_id}-cloudtrail-bucket-name"
   
   lifecycle {
-    prevent_destroy = false
+    prevent_destroy = true
   }
 
   versioning {
